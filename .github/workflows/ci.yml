@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install a Thai font
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q fonts-noto-core fontconfig
+          FONT=$(fc-match -f '%{file}' 'Noto Sans Thai')
+          echo "resolved font: $FONT"
+          echo "$FONT" | grep -qi thai
+          echo "FONT=$FONT" >> "$GITHUB_ENV"
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+      - name: Render the comparison demo
+        run: python demo.py "$FONT"
+      - name: Assert output produced
+        run: |
+          python - <<'EOF'
+          import os
+          size = os.path.getsize("comparison.png")
+          assert size > 5000, f"comparison.png suspiciously small: {size} bytes"
+          print(f"comparison.png OK ({size} bytes)")
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: comparison
+          path: comparison.png

@@ -1,5 +1,7 @@
 # thai-text-render
 
+[![CI](https://github.com/anthonychkwn/thai-text-render/actions/workflows/ci.yml/badge.svg)](https://github.com/anthonychkwn/thai-text-render/actions/workflows/ci.yml)
+
 Thai-correct text rendering for Pillow, using HarfBuzz shaping and FreeType rasterization.
 
 ## The problem
