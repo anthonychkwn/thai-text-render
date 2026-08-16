@@ -59,10 +59,10 @@ Writes `comparison.png` with the same four strings drawn twice: once through `Im
 
 `draw` accepts:
 
-- `anchor` — two characters, `[l|m|r][t|m|b]`; `(x, y)` is that anchor point
-- `alpha` — `0.0`–`1.0`, applied over the cached layer, so fades cost nothing extra
-- `glow` / `glow_color` — Gaussian halo behind the text, padded so the blur fades out instead of ending in a hard rectangle
-- `tracking`, `line_gap` — letter and line spacing
+- `anchor`: two characters, `[l|m|r][t|m|b]`; `(x, y)` is that anchor point
+- `alpha`: `0.0` to `1.0`, applied over the cached layer, so fades cost nothing extra
+- `glow` / `glow_color`: Gaussian halo behind the text, padded so the blur fades out instead of ending in a hard rectangle
+- `tracking`, `line_gap`: letter and line spacing
 - multi-line input via `\n`, each line centred
 
 ## Built for video
