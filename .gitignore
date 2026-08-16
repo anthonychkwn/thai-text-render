@@ -6,3 +6,5 @@ fonts/
 *.png
 !docs/*.png
 .DS_Store
+dist/
+*.egg-info/
