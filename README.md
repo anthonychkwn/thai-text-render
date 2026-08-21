@@ -51,6 +51,12 @@ python demo.py path/to/ThaiFont.ttf
 
 Writes `comparison.png` with the same four strings drawn twice: once through `ImageDraw.text`, once through this module.
 
+```bash
+pip install pytest && python -m pytest tests -q
+```
+
+The tests render against the first Thai font they can find; set `THAI_FONT` to pick one.
+
 ## API
 
 | function | purpose |
@@ -63,7 +69,7 @@ Writes `comparison.png` with the same four strings drawn twice: once through `Im
 
 - `anchor`: two characters, `[l|m|r][t|m|b]`; `(x, y)` is that anchor point
 - `alpha`: `0.0` to `1.0`, applied over the cached layer, so fades cost nothing extra
-- `glow` / `glow_color`: Gaussian halo behind the text, padded so the blur fades out instead of ending in a hard rectangle
+- `glow` / `glow_color`: Gaussian halo behind the text, padded so the blur fades out instead of ending in a hard rectangle. The anchor still refers to the text, so switching a glow on or off never moves the label
 - `tracking`, `line_gap`: letter and line spacing
 - multi-line input via `\n`, each line centred
 

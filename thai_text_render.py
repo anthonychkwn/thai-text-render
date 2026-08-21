@@ -110,9 +110,9 @@ def _colorize(mask, color):
     return Image.fromarray(rgba, "RGBA")
 
 
-def make_layer(text, path, size, color=(255, 255, 255),
-               glow=0, glow_color=(0, 0, 0), tracking=0, line_gap=None):
-    """Build a tight RGBA layer for (possibly multi-line) text. Cached."""
+def _layer_and_pad(text, path, size, color=(255, 255, 255),
+                   glow=0, glow_color=(0, 0, 0), tracking=0, line_gap=None):
+    """Build the layer, and report how much glow padding surrounds the text."""
     key = (text, path, size, tuple(color), glow, tuple(glow_color), tracking, line_gap)
     if key in _LAYER_CACHE:
         return _LAYER_CACHE[key]
@@ -132,6 +132,7 @@ def make_layer(text, path, size, color=(255, 255, 255),
         y += h + line_gap
 
     text_img = _colorize(big, color)
+    pad = 0
     if glow > 0:
         # Pad before blurring, otherwise the halo is clipped to the tight bbox
         # and you get a visible hard rectangle around the text.
@@ -146,8 +147,15 @@ def make_layer(text, path, size, color=(255, 255, 255),
     else:
         out = text_img
 
-    _LAYER_CACHE[key] = out
-    return out
+    _LAYER_CACHE[key] = (out, pad)
+    return out, pad
+
+
+def make_layer(text, path, size, color=(255, 255, 255),
+               glow=0, glow_color=(0, 0, 0), tracking=0, line_gap=None):
+    """Build a tight RGBA layer for (possibly multi-line) text. Cached."""
+    return _layer_and_pad(text, path, size, color, glow, glow_color,
+                          tracking, line_gap)[0]
 
 
 def draw(canvas, text, x, y, path, size, color=(255, 255, 255), alpha=1.0,
@@ -161,10 +169,14 @@ def draw(canvas, text, x, y, path, size, color=(255, 255, 255), alpha=1.0,
     """
     if alpha <= 0:
         return
-    layer = make_layer(text, path, size, color, glow, glow_color, tracking, line_gap)
+    layer, pad = _layer_and_pad(text, path, size, color, glow, glow_color,
+                                tracking, line_gap)
     w, h = layer.size
-    ax = {"l": 0, "m": -w // 2, "r": -w}[anchor[0]]
-    ay = {"t": 0, "m": -h // 2, "b": -h}[anchor[1]]
+    # Anchor against the text itself, not the glow halo padded around it,
+    # otherwise turning on a glow shifts every non-centred label by `pad`.
+    tw, th = w - pad * 2, h - pad * 2
+    ax = {"l": 0, "m": -tw // 2, "r": -tw}[anchor[0]] - pad
+    ay = {"t": 0, "m": -th // 2, "b": -th}[anchor[1]] - pad
     if alpha < 1.0:
         faded = layer.copy()
         faded.putalpha(layer.split()[3].point(lambda v: int(v * alpha)))
