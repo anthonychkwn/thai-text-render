@@ -32,6 +32,8 @@ Usage
     canvas.convert("RGB").save("out.png")
 """
 
+import math
+
 import numpy as np
 import uharfbuzz as hb
 import freetype
@@ -69,18 +71,23 @@ def _line_mask(text, path, size, tracking=0):
     buf.add_str(text)
     buf.guess_segment_properties()
     hb.shape(font, buf)
-    infos, poss = buf.glyph_infos, buf.glyph_positions
+    # An empty line shapes to no glyphs, and uharfbuzz reports that as None
+    # rather than an empty sequence. A caption track hits this on any blank
+    # line, including one between two paragraphs.
+    infos = buf.glyph_infos or []
+    poss = buf.glyph_positions or []
 
-    total = sum(p.x_advance * scale + tracking for p in poss)
     asc = ft.size.ascender >> 6
     desc = -(ft.size.descender >> 6)
     pad = max(6, size // 5)
-    W = int(total) + pad * 2
-    H = asc + desc + pad * 2
-    baseline = asc + pad
 
-    mask = np.zeros((H, W), dtype=np.uint16)
-    penx = float(pad)
+    # Rasterize first, in pen-relative coordinates, so the canvas can be sized
+    # to the ink instead of to the summed advances. Tight (negative) tracking
+    # overlaps the glyphs: the advances shrink faster than the ink does, so a
+    # canvas measured from advances alone cuts the glyphs off, and once the
+    # advances sum below zero the allocation fails outright.
+    glyphs = []
+    penx = 0.0
     for info, pos in zip(infos, poss):
         ft.load_glyph(info.codepoint, freetype.FT_LOAD_RENDER)
         bmp = ft.glyph.bitmap
@@ -89,15 +96,32 @@ def _line_mask(text, path, size, tracking=0):
             arr = np.array(bmp.buffer, dtype=np.uint8).reshape(h, w)
             # x_offset / y_offset carry the GPOS mark placement -- this is the
             # part a non-shaping renderer throws away.
-            dx = int(penx + pos.x_offset * scale + ft.glyph.bitmap_left)
-            dy = int(baseline - pos.y_offset * scale - ft.glyph.bitmap_top)
-            x0, y0 = max(0, dx), max(0, dy)
-            x1, y1 = min(W, dx + w), min(H, dy + h)
-            if x1 > x0 and y1 > y0:
-                sub = arr[y0 - dy:y1 - dy, x0 - dx:x1 - dx]
-                region = mask[y0:y1, x0:x1]
-                np.maximum(region, sub, out=region)
+            gx = penx + pos.x_offset * scale + ft.glyph.bitmap_left
+            gy = -pos.y_offset * scale - ft.glyph.bitmap_top
+            glyphs.append((arr, gx, gy))
         penx += pos.x_advance * scale + tracking
+
+    # Span the advance box and the ink both, so ordinary text keeps the width
+    # it has always had and overhanging ink still gets room.
+    left = min([0.0, penx] + [gx for _a, gx, _gy in glyphs])
+    right = max([0.0, penx] + [gx + a.shape[1] for a, gx, _gy in glyphs])
+
+    W = int(math.ceil(right - left)) + pad * 2
+    H = asc + desc + pad * 2
+    baseline = asc + pad
+    origin = pad - left
+
+    mask = np.zeros((H, W), dtype=np.uint16)
+    for arr, gx, gy in glyphs:
+        h, w = arr.shape
+        dx = int(origin + gx)
+        dy = int(baseline + gy)
+        x0, y0 = max(0, dx), max(0, dy)
+        x1, y1 = min(W, dx + w), min(H, dy + h)
+        if x1 > x0 and y1 > y0:
+            sub = arr[y0 - dy:y1 - dy, x0 - dx:x1 - dx]
+            region = mask[y0:y1, x0:x1]
+            np.maximum(region, sub, out=region)
 
     return np.clip(mask, 0, 255).astype(np.uint8), W, H, baseline
 
@@ -167,6 +191,10 @@ def draw(canvas, text, x, y, path, size, color=(255, 255, 255), alpha=1.0,
     alpha:  0.0-1.0, applied on top of the cached layer.
     glow:   Gaussian blur radius of a halo drawn behind the text, 0 to disable.
     """
+    if len(anchor) != 2 or anchor[0] not in "lmr" or anchor[1] not in "tmb":
+        raise ValueError(
+            "anchor must be two characters, [l|m|r][t|m|b]; got %r" % (anchor,)
+        )
     if alpha <= 0:
         return
     layer, pad = _layer_and_pad(text, path, size, color, glow, glow_color,
@@ -182,6 +210,19 @@ def draw(canvas, text, x, y, path, size, color=(255, 255, 255), alpha=1.0,
         faded.putalpha(layer.split()[3].point(lambda v: int(v * alpha)))
         layer = faded
     canvas.alpha_composite(layer, (int(x + ax), int(y + ay)))
+
+
+def clear_cache():
+    """
+    Drop every cached layer.
+
+    Layers are keyed by their full draw parameters and are never evicted, so a
+    long render that keeps producing new strings, a subtitle track for
+    instance, grows the cache for the whole run. Call this between scenes to
+    hand the memory back. Loaded fonts are kept, they are small and re-reading
+    them is the expensive part.
+    """
+    _LAYER_CACHE.clear()
 
 
 def measure(text, path, size, tracking=0, line_gap=None):

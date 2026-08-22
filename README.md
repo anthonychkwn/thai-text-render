@@ -64,6 +64,7 @@ The tests render against the first Thai font they can find; set `THAI_FONT` to p
 | `draw(canvas, text, x, y, font_path, size, ...)` | composite text onto an RGBA canvas |
 | `make_layer(text, font_path, size, ...)` | build the standalone RGBA layer (cached) |
 | `measure(text, font_path, size, ...)` | `(width, height)` the text would occupy |
+| `clear_cache()` | drop every cached layer, keeping the loaded fonts |
 
 `draw` accepts:
 
@@ -76,6 +77,8 @@ The tests render against the first Thai font they can find; set `THAI_FONT` to p
 ## Built for video
 
 Layers are cached on `(text, font, size, color, glow, tracking, line_gap)`. A subtitle held for two seconds at 30 fps is shaped and rasterized **once**; the other 59 frames only re-apply alpha and position. That is what makes this usable inside a per-frame render loop rather than only for one-off images.
+
+Nothing is ever evicted, so a run that keeps producing new strings holds every one of them. Call `clear_cache()` between scenes if that matters.
 
 ## Notes
 
