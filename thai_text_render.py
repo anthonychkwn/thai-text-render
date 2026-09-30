@@ -62,6 +62,8 @@ def _ft_face(path):
 
 def _line_mask(text, path, size, tracking=0):
     """Shape and rasterize one line. Returns (mask, width, height, baseline)."""
+    if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
+        raise ValueError("size must be a positive integer pixel size; got %r" % (size,))
     font, upem = _hb_font(path)
     ft = _ft_face(path)
     ft.set_pixel_sizes(0, size)

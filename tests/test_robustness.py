@@ -69,3 +69,11 @@ def test_a_blank_line_between_two_lines_is_allowed(font):
     spaced = ttr.measure("ก\n\nข", font, SIZE)
     tight = ttr.measure("ก\nข", font, SIZE)
     assert spaced[1] > tight[1]
+
+
+@pytest.mark.parametrize("size", [0, -5, 2.5, "48"])
+def test_bad_size_says_what_is_wrong(font, size):
+    # size 0 used to fall through to FreeType's default size, and a negative
+    # size surfaced as an opaque "raster overflow" from FreeType.
+    with pytest.raises(ValueError, match="size"):
+        ttr.make_layer(TEXT, font, size)
